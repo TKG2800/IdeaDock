@@ -8,16 +8,38 @@ on:
 
 jobs:
   add_new_issue_to_project:
-    name: Add new issue to Project
+    name: Add new issue to Project (GraphQL API)
     runs-on: ubuntu-latest
     if: github.event_name == 'issues'
     steps:
-      - name: Add to project
-        uses: actions/add-to-project@v0.5.0
-        with:
-          project-url: https://github.com/users/${{ github.repository_owner }}/projects/11
-          # github-tokenは必須。リポジトリのSecretsに正しく設定されているか要確認
-          github-token: ${{ secrets.PROJECT_AUTOMATION_PAT }}
+      - name: Add Issue to Project
+        env:
+          GITHUB_TOKEN: ${{ secrets.PROJECT_AUTOMATION_PAT }}
+          ISSUE_ID: ${{ github.event.issue.node_id }}
+          # あなたのユーザー名 (TKG2800)
+          OWNER_LOGIN: ${{ github.repository_owner }}
+          # プロジェクトの番号 (11)
+          PROJECT_NUMBER: 11
+        run: |
+          # 1. プロジェクトのNode IDを取得
+          PROJECT_NODE_ID=$(curl -s -X POST -H "Authorization: bearer $GITHUB_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data "{\"query\": \"query{user(login:\"$OWNER_LOGIN\"){projectV2(number:$PROJECT_NUMBER){id}}}\"}" \
+            https://api.github.com/graphql | jq -r '.data.user.projectV2.id')
+
+          if [ "$PROJECT_NODE_ID" == "null" ]; then
+            echo "Error: Could not find ProjectV2 ID for user $OWNER_LOGIN and project number $PROJECT_NUMBER."
+            exit 1
+          fi
+          echo "Project Node ID: $PROJECT_NODE_ID"
+
+          # 2. Issueをプロジェクトに追加するミューテーションを実行
+          curl -s -X POST -H "Authorization: bearer $GITHUB_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data "{\"query\": \"mutation {addProjectV2ItemById(input: {projectId: \"$PROJECT_NODE_ID\" contentId: \"$ISSUE_ID\"}) {item {id}}}\"}" \
+            https://api.github.com/graphql | jq .
+
+          echo "Issue ${{ github.event.issue.number }} added to project."
 
   move_item_based_on_pr:
     name: Move Project Item based on PR Status
