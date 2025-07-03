@@ -15,10 +15,9 @@ jobs:
       - name: Add to project
         uses: actions/add-to-project@v0.5.0
         with:
-          # 修正点: 個人アカウントのプロジェクトであることを明示
           project-url: https://github.com/users/${{ github.repository_owner }}/projects/11
+          # github-tokenは必須。リポジトリのSecretsに正しく設定されているか要確認
           github-token: ${{ secrets.PROJECT_AUTOMATION_PAT }}
-          column-name: 'Todo'
 
   move_item_based_on_pr:
     name: Move Project Item based on PR Status
